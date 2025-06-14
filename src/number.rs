@@ -1,9 +1,28 @@
+use std::ops::Neg;
 use std::{cmp::min, fmt};
 
 use crate::trit::Trit;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Number<const N: usize> ([Trit; N]);
+
+impl<const N: usize> Number<N> {
+
+    fn new(encoded: &str) -> Self {
+        let length = min(N, encoded.len());
+
+        // View character slice as slice of trits
+        let mut trits = encoded[..length].chars()
+            .map(Trit::from);
+
+        // Populate lowest N trits with decoded characters
+        let mut output = Number::<N>([(); N].map(|_| Trit::default()));
+        for i in (N-length)..N {
+            output.0[i] = trits.next().unwrap();
+        }
+        output
+    }
+}
 
 impl<const N: usize> From<Number<N>> for i32 {
     fn from(number: Number<N>) -> i32 {
@@ -28,114 +47,14 @@ impl<const N: usize> fmt::Display for Number<N> {
     }
 }
 
-impl<const N: usize> Number<N> {
-    fn new(encoded: &str) -> Self {
-        let length = min(N, encoded.len());
-
-        let mut trits = encoded[..length].chars()
-            .map(Trit::from);
-
-        let mut output = Number::<N>([(); N].map(|_| Trit::default()));
-        for i in (N-length)..N {
-            output.0[i] = trits.next().unwrap();
-        }
-        output
+impl<const N: usize> Neg for Number<N> {
+    type Output = Self;
+    
+    fn neg(self) -> Self::Output {
+        Self(self.0
+            .map(Trit::negate))
     }
 }
-
-// template <size_t N>
-// constexpr BT::Number<N>::Number(std::string_view encoded) {
-//     size_t length = std::min(N, encoded.size());
-
-//     // Populate lowest N trits with decoded characters
-//     std::ranges::transform(encoded, std::next(value.begin(), N-length), tritFromEncoded);
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator==(const Number<N>& rhs) const -> bool {
-//     return value == rhs.value;
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator!=(const Number<N>& rhs) const -> bool {
-//     return !(value == rhs.value);
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator<(const Number<N>& rhs) const -> bool {
-//     // Due to Trit enum being backed by appropriate integral values, the
-//     // default std::array lexicographical comparison is suitable logic
-//     // for comparing entire balanced ternary numbers.
-//     return value < rhs.value;
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator<=(const Number<N>& rhs) const -> bool {
-//     return !(rhs < *this);
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator>(const Number<N>& rhs) const -> bool {
-//     return rhs < *this;
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator>=(const Number<N>& rhs) const -> bool {
-//     return !(*this < rhs);
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator++() -> Number<N>& {
-
-//     // Assume a carry trit of +1 to add to the least significant trit. Keep performing
-//     // additions and propagating carries through the indices until we don't need to
-//     // carry anymore or we run out of trit indices. 
-//     BT::SumResult result{.result = Trit::ZERO, .carry = Trit::POS};
-//     for (auto it = value.rbegin(); result.carry != Trit::ZERO && it != value.rend(); ++it) {
-//         result = addTrits(*it, result.carry);
-//         *it = result.result;
-//     }
-
-//     return *this;
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator++(int) -> Number<N> {
-//     auto pre_increment = *this;
-//     ++(*this);
-//     return pre_increment;   
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator--() -> Number<N>& {
-//     // Assume a carry trit of -1 to add to the least significant trit. Keep performing
-//     // additions and propagating carries through the indices until we don't need to
-//     // carry anymore or we run out of trit indices. 
-//     BT::SumResult result{.result = Trit::ZERO, .carry = Trit::NEG};
-//     for (auto it = value.rbegin(); result.carry != Trit::ZERO && it != value.rend(); ++it) {
-//         result = addTrits(*it, result.carry);
-//         *it = result.result;
-//     }
-
-//     return *this;
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator--(int) -> Number<N> {
-//     auto pre_decrement = *this;
-//     --(*this);
-//     return pre_decrement;   
-// }
-
-// template <size_t N>
-// auto BT::Number<N>::operator-() const -> Number<N> {
-//     Number<N> out;
-
-//     // Flip all trits
-//     std::ranges::transform(value, out.value.begin(), negateTrit);
-
-//     return out;
-// }
 
 // template <size_t N>
 // auto BT::Number<N>::operator+(const Number<N>& rhs) const -> Number<N> {
@@ -343,9 +262,49 @@ mod tests {
     fn output_representation() {
         let num_50 = Number::<8>::new("+-0--");
         
-        // std::stringstream repr;
-        // repr << num_50;
-    
         assert_eq!(format!("{}", num_50), "000+-0-- (50)");
+    }
+
+    #[test]
+    fn comparisons() {
+        let num_0 = Number::<8>::new("0");
+        let num_17 = Number::<8>::new("+-0-");
+        let num_17_copy = num_17;
+        let num_neg_17 = Number::<8>::new("-+0+");
+
+        assert_eq!(num_17, num_17_copy);
+
+        assert_ne!(num_0, num_17);
+        assert_ne!(num_17, num_neg_17);
+
+        assert!(num_0 < num_17);
+        assert!(num_neg_17 < num_0);
+        assert!(num_neg_17 < num_17);
+
+        assert!(num_17 > num_neg_17);
+        assert!(num_0 > num_neg_17);
+        assert!(num_17 > num_0);
+
+        assert!(num_0 <= num_17);
+        assert!(num_neg_17 <= num_0);
+        assert!(num_neg_17 <= num_17);
+        assert!(num_17 <= num_17_copy);
+
+        assert!(num_17 >= num_neg_17);
+        assert!(num_0 >= num_neg_17);
+        assert!(num_17 >= num_0);
+        assert!(num_17 >= num_17_copy);
+    }
+
+    #[test]
+    fn unary_negation() {
+        let num_35 = Number::<8>::new("++0-");
+        let num_0 = Number::<8>::new("0");
+
+        assert_eq!(-num_35, Number::<8>::new("--0+")); // Negation is -35
+        assert_eq!(-(-num_35), Number::<8>::new("++0-")); // Double negation is 35
+
+        // Only one representation of zero, and so negative zero is still zero
+        assert_eq!(-num_0, num_0);
     }
 }

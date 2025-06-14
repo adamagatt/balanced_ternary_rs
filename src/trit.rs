@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::sum_result::SumResult;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, Eq, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum Trit {NEG, #[default]ZERO, POS}
 
@@ -34,7 +34,7 @@ impl From<&char> for Trit {
 }
 
 impl Trit {
-    fn negate(&self) -> Self {
+    pub fn negate(self) -> Self {
         match self {
             Trit::NEG => Trit::POS,
             Trit::ZERO => Trit::ZERO,
@@ -42,7 +42,7 @@ impl Trit {
         }
     }
 
-    fn add(&self, rhs: &Trit) -> SumResult {
+    pub fn add(&self, rhs: &Trit) -> SumResult {
         match (self, rhs) {
             (l, Trit::ZERO) => SumResult {result: *l, carry: Trit::ZERO},
             (Trit::ZERO, r) => SumResult {result: *r, carry: Trit::ZERO},
@@ -52,7 +52,7 @@ impl Trit {
         }
     }
 
-    fn add_with_carry(&self, rhs: &Trit, carry: &Trit) -> SumResult {
+    pub fn add_with_carry(&self, rhs: &Trit, carry: &Trit) -> SumResult {
         match (self, rhs, carry) {
             // If any trit is zero we can reduce to the binary sum
             (Trit::ZERO, r, c) => r.add(c),
