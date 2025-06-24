@@ -1,4 +1,5 @@
-use std::ops::{Add, AddAssign, Neg, Shl, ShlAssign, Sub, SubAssign};
+use std::iter::{from_fn, Sum};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Shl, ShlAssign, Sub, SubAssign};
 use std::{cmp::min, fmt};
 
 use crate::trit::Trit;
@@ -7,6 +8,8 @@ use crate::trit::Trit;
 struct Number<const N: usize> ([Trit; N]);
 
 impl<const N: usize> Number<N> {
+    const ZERO: Number<N> = Number::<N>([Trit::ZERO; N]);
+
     fn new(encoded: &str) -> Self {
         let length = min(N, encoded.len());
 
@@ -27,10 +30,7 @@ impl<const N: usize> Number<N> {
     /// * `source` - An iterator that supplies Trits
     fn from_rev_iter(source: impl Iterator<Item = Trit>) -> Self {
         let mut source_with_idx= source.enumerate();
-
-        // Hack to populate N-length array with default values, as templated arrays cannot
-        // current derive the Default trait, unfortunately.
-        let mut output = Number::<N>([(); N].map(|_| Trit::default()));
+        let mut output = Number::<N>::ZERO;
 
         // Populate lowest N trits with those provided from source
         while let Some((idx, trit)) = source_with_idx.next() {
@@ -53,7 +53,7 @@ impl<const N: usize> From<Number<N>> for i32 {
             .enumerate()
             .map(|(idx, trit)| match trit {
                 Trit::NEG => -3_i32.pow(idx as u32),
-                Trit::ZERO => 0,
+                Trit::ZERO => 0_i32,
                 Trit::POS => 3_i32.pow(idx as u32)
             })
             .sum()
@@ -95,6 +95,12 @@ impl <const N: usize> Add for Number<N> {
     }
 }
 
+impl <const N: usize> Sum for Number<N> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Number::<N>::ZERO, std::ops::Add::add)
+    }
+}
+
 impl <const N: usize> Sub for Number<N> {
     type Output = Self;
 
@@ -129,7 +135,7 @@ impl <const N: usize> Shl<usize> for Number<N> {
     type Output = Self;
 
     fn shl(self, positions: usize) -> Self::Output {
-        let mut out = Number::<N>([Trit::ZERO; N]);
+        let mut out = Number::<N>::ZERO;
 
         // Early exit if we left-shift far enough that our number just becomes zero
         if positions >= N {
@@ -159,6 +165,46 @@ impl <const N: usize> ShlAssign<usize> for Number<N> {
     }
 }
 
+impl <const N: usize> Mul for Number<N> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        // Generator that will provide continually left-shifted copies
+        // of the rhs operand. This will support the shift-and-add
+        // approach of the multiplication.
+        let mut rhs_shifted = rhs;
+        let rhs_shifter = move || {
+            let out = rhs_shifted;
+            rhs_shifted <<= 1;
+            Some(out)
+        };
+
+        self.0.iter().rev()
+            .zip(from_fn(rhs_shifter))
+            .map(|(current_trit, rhs_shifted)| 
+                match current_trit {
+                    Trit::NEG => -rhs_shifted,
+                    Trit::ZERO => Number::<N>::ZERO,
+                    Trit::POS => rhs_shifted
+                }
+            )
+            .sum()
+    }
+}
+
+impl <const N: usize> MulAssign for Number<N> {
+    fn mul_assign(&mut self, rhs: Self) {
+        // Based on the shift-and-add approach to multiplication I don't see an
+        // obvious way to do a more efficient in-place multiplication operator.
+        // We need a third spare variable to build the complete result and then
+        // copy it into our own array, or otherwise we make a copy of our own 
+        // array before zeroing it out and perform the shift-and-add in-place
+        // on that array.
+
+        *self = *self * rhs;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,7 +218,7 @@ mod tests {
 
     #[test]
     fn comparisons() {
-        let num_0 = Number::<8>::new("0");
+        let num_0 = Number::<8>::ZERO;
         let num_17 = Number::<8>::new("+-0-");
         let num_17_copy = num_17;
         let num_neg_17 = Number::<8>::new("-+0+");
@@ -204,7 +250,7 @@ mod tests {
     #[test]
     fn unary_negation() {
         let num_35 = Number::<8>::new("++0-");
-        let num_0 = Number::<8>::new("0");
+        let num_0 = Number::<8>::ZERO;
 
         assert_eq!(-num_35, Number::<8>::new("--0+")); // Negation is -35
         assert_eq!(-(-num_35), Number::<8>::new("++0-")); // Double negation is 35
@@ -257,7 +303,7 @@ mod tests {
         assert_eq!(num_23 + num_33, Number::<8>::new("+-0+-")); // Sum to 56
         assert_eq!(num_23 - num_33, Number::<8>::new("-0-")); // Difference is -10
         assert_eq!(num_33 - num_23, Number::<8>::new("+0+")); // Difference is 10
-        // EXPECT_EQ(num_23 * num_33, BT::Number<8>{"+00+0+0"}); // Product is 759
+        assert_eq!(num_23 * num_33, Number::<8>::new("+00+0+0")); // Product is 759
     }
 
     #[test]
@@ -277,8 +323,8 @@ mod tests {
         temp -= num_23;
         assert_eq!(temp, Number::<8>::new("+0+")); // Difference is 10
         
-        // temp = num_23;
-        // temp *= num_33;
-        // EXPECT_EQ(temp, BT::Number<8>{"+00+0+0"}); // Product is 759
+        temp = num_23;
+        temp *= num_33;
+        assert_eq!(temp, Number::<8>::new("+00+0+0")); // Product is 759
 }
 }
