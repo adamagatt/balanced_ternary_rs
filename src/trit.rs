@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::sum_result::SumResult;
 
-#[derive(Debug, Clone, Copy, Default, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Default, Eq, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum Trit {NEG, #[default]ZERO, POS}
 
@@ -13,6 +13,14 @@ impl fmt::Display for Trit {
             Trit::ZERO => '0',
             Trit::POS => '+'
         })
+    }
+}
+
+impl fmt::Debug for Trit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Opting to use the same output representation for Display
+        // Debug traits.
+        fmt::Display::fmt(&self, f)
     }
 }
 
