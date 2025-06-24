@@ -1,4 +1,4 @@
-use std::ops::{Add, Neg, Sub};
+use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 use std::{cmp::min, fmt};
 
 use crate::trit::Trit;
@@ -16,14 +16,23 @@ impl<const N: usize> Number<N> {
             .rev()
             .map(Trit::from);
 
-        Number::<N>::from_iter(trits)
+        Number::<N>::from_rev_iter(trits)
     }
 
-    fn from_iter(source: impl Iterator<Item = Trit>) -> Self {
+    /// Builds a balanced ternary number of length N from the supplied iterator of trits. The
+    /// iterator should be in reverse order to allow the number to be populated from least-
+    /// to most-significant position. If more trits are provided than the size of the number
+    /// then the excess will be lost; if fewer are provided then the higher-order trits will
+    /// be padded with zeros.
+    /// * `source` - An iterator that supplies Trits
+    fn from_rev_iter(source: impl Iterator<Item = Trit>) -> Self {
         let mut source_with_idx= source.enumerate();
 
-        // Populate lowest N trits with those provided from source
+        // Hack to populate N-length array with default values, as templated arrays cannot
+        // current derive the Default trait, unfortunately.
         let mut output = Number::<N>([(); N].map(|_| Trit::default()));
+
+        // Populate lowest N trits with those provided from source
         while let Some((idx, trit)) = source_with_idx.next() {
             // Early exit if more trits are provided than the size of the Number
             if idx == N {
@@ -38,7 +47,9 @@ impl<const N: usize> Number<N> {
 
 impl<const N: usize> From<Number<N>> for i32 {
     fn from(number: Number<N>) -> i32 {
+        // Proceed through trits from lowest-order to highest
         number.0.iter().rev()
+            // Add index since we will need it to determine value at that position
             .enumerate()
             .map(|(idx, trit)| match trit {
                 Trit::NEG => -3_i32.pow(idx as u32),
@@ -62,8 +73,7 @@ impl<const N: usize> Neg for Number<N> {
     type Output = Self;
     
     fn neg(self) -> Self::Output {
-        Self(self.0
-            .map(Trit::negate))
+        Self(self.0.map(Trit::negate))
     }
 }
 
@@ -71,15 +81,17 @@ impl <const N: usize> Add for Number<N> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
+        // Zip trits from both operands, going in reverse order so carries can propagate upwards
         let reverse_result_trits = self.0.iter().rev()
             .zip(rhs.0.iter().rev())
+            // "Scan" as we need an output at each index, with accumulator propagating the carry trit
             .scan(Trit::ZERO, |carry, (lhs, rhs)| {
                 let sum_result = lhs.add_with_carry(rhs, carry);
                 *carry = sum_result.carry;
                 Some(sum_result.result)
             });
         
-        Number::<N>::from_iter(reverse_result_trits)
+        Number::<N>::from_rev_iter(reverse_result_trits)
     }
 }
 
@@ -87,7 +99,29 @@ impl <const N: usize> Sub for Number<N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        self + (-rhs)
+        self + -rhs
+    }
+}
+
+impl <const N: usize> AddAssign for Number<N> {
+    fn add_assign(&mut self, rhs: Self) {
+        // Much the same as the Add trait, but mutating self data in-place. As such we replace
+        // "scan" with "for_each" to remove need for output. However we then lose the accumulator
+        // So we need to declare an external `carry` variable.
+        let mut carry = Trit::ZERO;
+        self.0.iter_mut().rev()
+            .zip(rhs.0.iter().rev())
+            .for_each(|(lhs, rhs)| {
+                let sum_result = lhs.add_with_carry(rhs, &carry);
+                carry = sum_result.carry;
+                *lhs = sum_result.result;
+            });
+    }
+}
+
+impl <const N: usize> SubAssign for Number<N> {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self += -rhs;
     }
 }
 
@@ -150,9 +184,31 @@ mod tests {
         let num_23 = Number::<8>::new("+0--");
         let num_33 = Number::<8>::new("++-0");
 
-    assert_eq!(num_23 + num_33, Number::<8>::new("+-0+-")); // Sum to 56
-    assert_eq!(num_23 - num_33, Number::<8>::new("-0-")); // Difference is -10
-    // EXPECT_EQ(num_33 - num_23, BT::Number<8>{"+0+"}); // Difference is 10
-    // EXPECT_EQ(num_23 * num_33, BT::Number<8>{"+00+0+0"}); // Product is 759
+        assert_eq!(num_23 + num_33, Number::<8>::new("+-0+-")); // Sum to 56
+        assert_eq!(num_23 - num_33, Number::<8>::new("-0-")); // Difference is -10
+        assert_eq!(num_33 - num_23, Number::<8>::new("+0+")); // Difference is 10
+        // EXPECT_EQ(num_23 * num_33, BT::Number<8>{"+00+0+0"}); // Product is 759
+    }
+
+    #[test]
+    fn in_place_binary_operations() {
+        let num_23 = Number::<8>::new("+0--");
+        let num_33 = Number::<8>::new("++-0");
+
+        let mut temp = num_23;
+        temp += num_33;
+        assert_eq!(temp, Number::<8>::new("+-0+-")); // Sum to 56
+
+        temp = num_23;
+        temp -= num_33;
+        assert_eq!(temp, Number::<8>::new("-0-")); // Difference is -10
+        
+        temp = num_33;
+        temp -= num_23;
+        assert_eq!(temp, Number::<8>::new("+0+")); // Difference is 10
+        
+        // temp = num_23;
+        // temp *= num_33;
+        // EXPECT_EQ(temp, BT::Number<8>{"+00+0+0"}); // Product is 759
 }
 }
