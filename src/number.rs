@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Neg, Shl, ShlAssign, Sub, SubAssign};
 use std::{cmp::min, fmt};
 
 use crate::trit::Trit;
@@ -125,6 +125,40 @@ impl <const N: usize> SubAssign for Number<N> {
     }
 }
 
+impl <const N: usize> Shl<usize> for Number<N> {
+    type Output = Self;
+
+    fn shl(self, positions: usize) -> Self::Output {
+        let mut out = Number::<N>([Trit::ZERO; N]);
+
+        // Early exit if we left-shift far enough that our number just becomes zero
+        if positions >= N {
+            return out;
+        }
+
+        // Left shift is just copying the correct trits from our value to the
+        // start of our zero-initialised output number 
+        out.0[..(N-positions)].copy_from_slice(&self.0[positions..]);
+        out
+    }
+}
+
+impl <const N: usize> ShlAssign<usize> for Number<N> {
+    fn shl_assign(&mut self, positions: usize) {
+        // Early exit if we left-shift far enough that our number just becomes zero
+        if positions >= N {
+            self.0.fill(Trit::ZERO);
+            return;
+        }
+
+        // An in-place left-shift is achieved by rotating our value array by the
+        // specified number of positions and then zeroing out the least-significant
+        // trits.
+        self.0.rotate_left(positions);
+        self.0[N-positions..].fill(Trit::ZERO);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,6 +211,42 @@ mod tests {
 
         // Only one representation of zero, and so negative zero is still zero
         assert_eq!(-num_0, num_0);
+    }
+
+    #[test]
+    fn left_shift() {
+        let num_neg_8 = Number::<8>::new("-0+"); // -8
+
+        assert_eq!(num_neg_8 << 1, Number::<8>::new("0000-0+0"));
+        assert_eq!(num_neg_8 << 2, Number::<8>::new("000-0+00"));
+        assert_eq!(num_neg_8 << 3, Number::<8>::new("00-0+000"));
+        assert_eq!(num_neg_8 << 4, Number::<8>::new("0-0+0000"));
+        assert_eq!(num_neg_8 << 5, Number::<8>::new("-0+00000"));
+        assert_eq!(num_neg_8 << 6, Number::<8>::new("0+000000"));
+        assert_eq!(num_neg_8 << 7, Number::<8>::new("+0000000"));
+        assert_eq!(num_neg_8 << 8, Number::<8>::new("00000000"));
+    }
+
+    #[test]
+    fn in_place_left_shift() {
+        let mut shifting_num = Number::<8>::new("-0+"); // -8
+        
+        shifting_num <<= 1;
+        assert_eq!(shifting_num, Number::<8>::new("0000-0+0"));
+        shifting_num <<= 1;
+        assert_eq!(shifting_num, Number::<8>::new("000-0+00"));
+        shifting_num <<= 1;
+        assert_eq!(shifting_num, Number::<8>::new("00-0+000"));
+        shifting_num <<= 1;
+        assert_eq!(shifting_num, Number::<8>::new("0-0+0000"));
+        shifting_num <<= 1;
+        assert_eq!(shifting_num, Number::<8>::new("-0+00000"));
+        shifting_num <<= 1;
+        assert_eq!(shifting_num, Number::<8>::new("0+000000"));
+        shifting_num <<= 1;
+        assert_eq!(shifting_num, Number::<8>::new("+0000000"));
+        shifting_num <<= 1;
+        assert_eq!(shifting_num, Number::<8>::new("00000000"));
     }
 
     #[test]
