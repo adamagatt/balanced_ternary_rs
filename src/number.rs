@@ -1,7 +1,8 @@
 use std::iter::{from_fn, Sum};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Shl, ShlAssign, Sub, SubAssign};
-use std::{cmp::min, fmt};
+use std::fmt;
 
+use crate::sum_result::SumResult;
 use crate::trit::Trit;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -11,11 +12,9 @@ impl<const N: usize> Number<N> {
     const ZERO: Number<N> = Number::<N>([Trit::ZERO; N]);
 
     fn new(encoded: &str) -> Self {
-        let length = min(N, encoded.len());
-
         // View character slice as slice of trits, starting from right
         // hand size (lowest significant trit)
-        let trits = encoded[..length].chars()
+        let trits = encoded.chars()
             .rev()
             .map(Trit::from);
 
@@ -29,10 +28,10 @@ impl<const N: usize> Number<N> {
     /// be padded with zeros.
     /// * `source` - An iterator that supplies Trits
     fn from_rev_iter(source: impl Iterator<Item = Trit>) -> Self {
-        let mut source_with_idx= source.enumerate();
         let mut output = Number::<N>::ZERO;
 
         // Populate lowest N trits with those provided from source
+        let mut source_with_idx= source.enumerate();
         while let Some((idx, trit)) = source_with_idx.next() {
             // Early exit if more trits are provided than the size of the Number
             if idx == N {
@@ -86,9 +85,9 @@ impl <const N: usize> Add for Number<N> {
             .zip(rhs.0.iter().rev())
             // "Scan" as we need an output at each index, with accumulator propagating the carry trit
             .scan(Trit::ZERO, |carry, (lhs, rhs)| {
-                let sum_result = lhs.add_with_carry(rhs, carry);
-                *carry = sum_result.carry;
-                Some(sum_result.result)
+                let SumResult{result, carry: new_carry} = lhs.add_with_carry(rhs, carry);
+                *carry = new_carry;
+                Some(result)
             });
         
         Number::<N>::from_rev_iter(reverse_result_trits)
@@ -118,9 +117,9 @@ impl <const N: usize> AddAssign for Number<N> {
         self.0.iter_mut().rev()
             .zip(rhs.0.iter().rev())
             .for_each(|(lhs, rhs)| {
-                let sum_result = lhs.add_with_carry(rhs, &carry);
-                carry = sum_result.carry;
-                *lhs = sum_result.result;
+                let SumResult { result, carry: new_carry} = lhs.add_with_carry(rhs, &carry);
+                carry = new_carry;
+                *lhs = result;
             });
     }
 }
@@ -181,11 +180,11 @@ impl <const N: usize> Mul for Number<N> {
 
         self.0.iter().rev()
             .zip(from_fn(rhs_shifter))
-            .map(|(current_trit, rhs_shifted)| 
+            .filter_map(|(current_trit, rhs_shifted)| 
                 match current_trit {
-                    Trit::NEG => -rhs_shifted,
-                    Trit::ZERO => Number::<N>::ZERO,
-                    Trit::POS => rhs_shifted
+                    Trit::NEG => Some(-rhs_shifted),
+                    Trit::ZERO => None,
+                    Trit::POS => Some(rhs_shifted)
                 }
             )
             .sum()
