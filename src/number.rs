@@ -6,12 +6,12 @@ use crate::sum_result::SumResult;
 use crate::trit::Trit;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct Number<const N: usize> ([Trit; N]);
+pub struct Number<const N: usize> ([Trit; N]);
 
 impl<const N: usize> Number<N> {
     const ZERO: Number<N> = Number::<N>([Trit::ZERO; N]);
 
-    fn new(encoded: &str) -> Self {
+    pub fn new(encoded: &str) -> Self {
         // View character slice as slice of trits, starting from right
         // hand size (lowest significant trit)
         let trits = encoded.chars()
@@ -27,7 +27,7 @@ impl<const N: usize> Number<N> {
     /// then the excess will be lost; if fewer are provided then the higher-order trits will
     /// be padded with zeros.
     /// * `source` - An iterator that supplies Trits
-    fn from_rev_iter(source: impl Iterator<Item = Trit>) -> Self {
+    pub fn from_rev_iter(source: impl Iterator<Item = Trit>) -> Self {
         let mut output = Number::<N>::ZERO;
 
         // Populate lowest N trits with those provided from source
@@ -42,11 +42,11 @@ impl<const N: usize> Number<N> {
         output       
     }
     
-    fn inc(&mut self) {
+    pub fn inc(&mut self) {
         *self += Trit::POS;
     }
 
-    fn dec(&mut self) {
+    pub fn dec(&mut self) {
         *self += Trit::NEG;
     }
 }
