@@ -1,5 +1,5 @@
 use std::iter::{from_fn, Sum};
-use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Shl, ShlAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Shl, ShlAssign, Sub, SubAssign};
 use std::fmt;
 
 use crate::sum_result::SumResult;
@@ -31,8 +31,7 @@ impl<const N: usize> Number<N> {
         let mut output = Number::<N>::ZERO;
 
         // Populate lowest N trits with those provided from source
-        let mut source_with_idx= source.enumerate();
-        while let Some((idx, trit)) = source_with_idx.next() {
+        for (idx, trit) in source.enumerate() {
             // Early exit if more trits are provided than the size of the Number
             if idx == N {
                 break;
@@ -41,6 +40,14 @@ impl<const N: usize> Number<N> {
             output.0[N-1-idx] = trit;
         }
         output       
+    }
+    
+    fn inc(&mut self) {
+        *self += Trit::POS;
+    }
+
+    fn dec(&mut self) {
+        *self += Trit::NEG;
     }
 }
 
@@ -124,6 +131,22 @@ impl <const N: usize> AddAssign for Number<N> {
     }
 }
 
+impl <const N: usize> AddAssign<Trit> for Number<N> {
+    fn add_assign(&mut self, rhs: Trit) {
+        // Add the rhs to the least significant trit. Keep performing additions
+        // and propagating carries through the indices until we don't need to
+        // carry anymore or we run out of trit indices.
+        let mut carry = rhs;
+        for trit in self.0.iter_mut().rev() {
+            if carry == Trit::ZERO {break;}
+
+            let SumResult{result, carry: new_carry} = trit.add(&carry);
+            carry = new_carry;
+            *trit = result;
+        }
+    }
+}
+
 impl <const N: usize> SubAssign for Number<N> {
     fn sub_assign(&mut self, rhs: Self) {
         *self += -rhs;
@@ -204,6 +227,45 @@ impl <const N: usize> MulAssign for Number<N> {
     }
 }
 
+impl <const N: usize> Div for Number<N> {
+    type Output = Self;
+
+    fn div(self, divisor: Self) -> Self::Output {
+        if divisor == Number::<N>::ZERO {
+            panic!("Attempt to divide by zero")
+        }
+
+        // Integer division implemented with a repeated subtraction approach. We
+        // convert numerator and divisor to positive to perform the division, and
+        // then decide whether to flip the result based on if they originally had
+        // different signs.
+
+        let numerator_is_negative = self < Number::<N>::ZERO;
+        let mut abs_remainder = if numerator_is_negative {-self} else {self};
+
+        let divisor_is_negative = divisor < Number::<N>::ZERO;
+        let abs_divisor = if divisor_is_negative {-divisor} else {divisor};
+
+        let mut quotient = Number::<N>::ZERO;
+        while abs_remainder >= abs_divisor {
+            abs_remainder -= abs_divisor;
+            quotient.inc();
+        }
+
+        if numerator_is_negative ^ divisor_is_negative {
+            -quotient
+        } else {
+            quotient
+        }
+    }
+}
+
+impl <const N: usize> DivAssign for Number<N> {
+    fn div_assign(&mut self, divisor: Self) {
+        *self = *self / divisor;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,6 +306,60 @@ mod tests {
         assert!(num_0 >= num_neg_17);
         assert!(num_17 >= num_0);
         assert!(num_17 >= num_17_copy);
+    }
+
+    #[test]
+    fn increments() {
+        let num_neg_one = Number::<8>::new("-");
+        let num_0 = Number::<8>::ZERO;
+        let num_one = Number::<8>::new("+");
+
+        // Pre-increment provides the incremented value
+        let mut temp = num_neg_one;
+        temp.inc();
+        assert_eq!(temp, num_0);
+        
+        temp = num_0;
+        temp.inc();
+        assert_eq!(temp, num_one);
+
+        temp = num_neg_one;
+        temp.inc();
+        temp.inc();
+        assert_eq!(temp, num_one);
+
+        // Test a chain of carries
+        let num_neg_14 = Number::<8>::new("-+++");
+        temp = num_neg_14;
+        temp.inc();
+        assert_eq!(temp, Number::<8>::new("0---")); // -14 + 1 = -13
+    }
+
+    #[test]
+    fn decrements() {
+        let num_neg_one = Number::<8>::new("-");
+        let num_0 = Number::<8>::ZERO;
+        let num_one = Number::<8>::new("+");
+
+        // Pre-decrement provides the decremented value
+        let mut temp = num_0;
+        temp.dec();
+        assert_eq!(temp, num_neg_one);
+
+        temp = num_one;
+        temp.dec();
+        assert_eq!(temp, num_0);
+
+        temp = num_one;
+        temp.dec();
+        temp.dec();
+        assert_eq!(temp, num_neg_one);
+
+        // Test a chain of carries
+        let num_14 = Number::<8>::new("+---");
+        temp = num_14;
+        temp.dec();
+        assert_eq!(temp, Number::<8>::new("0+++")); // 14 - 1 = 13
     }
 
     #[test]
@@ -326,4 +442,47 @@ mod tests {
         temp *= num_33;
         assert_eq!(temp, Number::<8>::new("+00+0+0")); // Product is 759
 }
+
+    #[test]
+    fn integer_division() {
+        let num_59 = Number::<8>::new("+-+--");
+        let num_60 = Number::<8>::new("+-+-0");
+        let num_61 = Number::<8>::new("+-+-+");
+        let num_12 = Number::<8>::new("++0");
+
+        // Integral division with remainders discarded
+        assert_eq!(num_59 / num_12, Number::<8>::new("0++")); // 59 / 12 = 4
+        assert_eq!(num_60 / num_12, Number::<8>::new("+--")); // 60 / 12 = 5
+        assert_eq!(num_61 / num_12, Number::<8>::new("+--")); // 61 / 12 = 5
+
+        // Negatively signed numerators and divisors, results rounded towards zero
+        assert_eq!(-num_59 /  num_12, Number::<8>::new("0--")); // -59 /  12 = -4
+        assert_eq!( num_59 / -num_12, Number::<8>::new("0--")); //  59 / -12 = -4
+        assert_eq!(-num_59 / -num_12, Number::<8>::new("0++")); // -59 / -12 =  4
+
+        // Dividing zero by any number results in zero
+        let num_0: Number<8> = Number::<8>::ZERO;
+
+        assert_eq!(num_0 / num_60, num_0);    // 0 /  60 = 0
+        assert_eq!(num_0 / (-num_60), num_0); // 0 / -60 = 0
+    }
+
+    #[test]
+    #[should_panic(expected = "Attempt to divide by zero")]
+    fn pos_divide_by_zero() {
+        let num_61 = Number::<8>::new("+-+-+");
+        let num_0: Number<8> = Number::<8>::ZERO;
+
+        let _ = num_61 / num_0;
+    }
+
+    #[test]
+    #[should_panic(expected = "Attempt to divide by zero")]
+    fn neg_divide_by_zero() {
+        let num_neg_61 = Number::<8>::new("-+-+-");
+        let num_0: Number<8> = Number::<8>::ZERO;
+
+        let _ = num_neg_61 / num_0;
+    }  
+
 }
