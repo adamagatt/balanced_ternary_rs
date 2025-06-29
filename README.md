@@ -11,12 +11,11 @@ A calculator for representing integer values and performing operations using the
 This is implemented as a library with in-module unit tests. Run `cargo build` to build and `cargo test` to execute all unit tests.
 
 Operations currently supported include:
-* Addition and Subtraction
+* Addition, subtraction, multiplication, integer division
 * Comparison operators
+* Left shifting and unary negation
 * Conversion to i32
-* Printable representation to output stream
-
-With support added over time for multiplication, integer division and left shifting
+* Parse from and display to character representation
 
 Balanced ternary is a positional number system where each digit is a three-value "trit" that can hold a value of -1, 0 or 1. I represent these visually with the symbols `-`, `0` and `+` respectively (other notations use `0` and `1` with `T` representing -1).
 
