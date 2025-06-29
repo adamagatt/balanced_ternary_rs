@@ -8,6 +8,14 @@ use crate::trit::Trit;
 impl <const N: usize> Add for Number<N> {
     type Output = Self;
 
+    /// Add this ternary number to another that has been provided. This
+    /// may currently result in an overflow if the sum of the two numbers
+    /// requires a length that is greater than the templated size N.
+    /// 
+    /// * `rhs` The number to add this number to
+    /// 
+    /// **returns** the result of adding this ternary number to the submitted
+    /// number.
     fn add(self, rhs: Self) -> Self::Output {
         // Zip trits from both operands, going in reverse order so carries can propagate upwards
         let reverse_result_trits = self.0.iter().rev()
@@ -24,6 +32,12 @@ impl <const N: usize> Add for Number<N> {
 }
 
 impl <const N: usize> AddAssign for Number<N> {
+    /// In-place addition of another ternary number into this one, modifying
+    /// this number rather than returning the sum. This may currently result
+    /// in an overflow if the sum of the two numbers requires a length that
+    /// is greater than the templated size N.
+    /// 
+    /// * `rhs` The number to add into this number
     fn add_assign(&mut self, rhs: Self) {
         // Much the same as the Add trait, but mutating self data in-place. As such we replace
         // "scan" with "for_each" to remove need for output. However we then lose the accumulator
@@ -40,6 +54,11 @@ impl <const N: usize> AddAssign for Number<N> {
 }
 
 impl <const N: usize> AddAssign<Trit> for Number<N> {
+    /// In-place addition of an individual trit. This may currently result
+    /// in an overflow if the trit results in enough carries to reach the
+    /// end of the templated size N.
+    /// 
+    /// * `rhs` The trit to add into this number
     fn add_assign(&mut self, rhs: Trit) {
         // Add the rhs to the least significant trit. Keep performing additions
         // and propagating carries through the indices until we don't need to
@@ -58,12 +77,27 @@ impl <const N: usize> AddAssign<Trit> for Number<N> {
 impl <const N: usize> Sub for Number<N> {
     type Output = Self;
 
+    /// Return the result of subtracting another ternary number from this one.
+    /// This may currently result in an underflow if the result of the
+    /// subtraction requires a length that is greater than the templated size
+    /// N.
+    /// 
+    /// * `rhs` The number to subtract from this one
+    /// 
+    /// **returns** the result of subtracting the submitted ternary number from
+    /// this one.
     fn sub(self, rhs: Self) -> Self::Output {
         self + -rhs
     }
 }
 
 impl <const N: usize> SubAssign for Number<N> {
+    /// In-place subtraction of another ternary number from this one, modifying
+    /// this number rather than returning the difference. This may currently
+    /// result in an underflow if the difference of the two numbers requires a
+    /// length that is greater than the templated size N.
+    /// 
+    /// * `rhs` The number to subtract from this number
     fn sub_assign(&mut self, rhs: Self) {
         *self += -rhs;
     }
@@ -73,6 +107,14 @@ impl <const N: usize> SubAssign for Number<N> {
 impl <const N: usize> Mul for Number<N> {
     type Output = Self;
 
+    /// Calculate the product of this ternary number multiplied with another
+    /// that has been provided. This may currently result in an overflow or
+    /// underflow if the product of the two numbers requires a length that is
+    /// greater than the templated size N.
+    /// 
+    /// * `rhs` The number to multiply this number with
+    /// 
+    /// **returns** the product of this ternary number and the submitted number.
     fn mul(self, rhs: Self) -> Self::Output {
         // Generator that will provide continually left-shifted copies
         // of the rhs operand. This will support the shift-and-add
@@ -98,6 +140,12 @@ impl <const N: usize> Mul for Number<N> {
 }
 
 impl <const N: usize> MulAssign for Number<N> {
+    /// In-place multiplication of this ternary number with another that has
+    /// been provided. This may currently result in an overflow or underflow
+    /// if the product of the two numbers requires a length that is greater
+    /// than the templated size N.
+    /// 
+    /// * `rhs` The number to multiply this number with
     fn mul_assign(&mut self, rhs: Self) {
         // Based on the shift-and-add approach to multiplication I don't see an
         // obvious way to do a more efficient in-place multiplication operator.
@@ -113,6 +161,18 @@ impl <const N: usize> MulAssign for Number<N> {
 impl <const N: usize> Div for Number<N> {
     type Output = Self;
 
+    /// Calculate the integer division of this ternary number by the supplied
+    /// divisor, with the remainder discarded. This implementation rounds negative
+    /// results towards zero rather than negative infinity, as the symmetry between
+    /// positive and negative is a defining feature of balanced ternary.
+    ///
+    /// If the divisor is zero then the program will exit with an error mesage. In
+    /// future integer division by zero will be handled gracefully with an error
+    /// result or exception.
+    /// 
+    /// * `divisor` the number to integer divide this number by
+    /// 
+    /// **returns** the result of integer dividing this number by the supplied divisor
     fn div(self, divisor: Self) -> Self::Output {
         if divisor == Number::<N>::ZERO {
             panic!("Attempt to divide by zero")
@@ -144,6 +204,16 @@ impl <const N: usize> Div for Number<N> {
 }
 
 impl <const N: usize> DivAssign for Number<N> {
+    /// In-place integer division of this ternary number with the supplied divisor,
+    /// with the remainder discarded. This implementation rounds negative results
+    /// towards zero rather than negative infinity, as the symmetry between
+    /// positive and negative is a defining feature of balanced ternary.
+    ///
+    /// If the divisor is zero then the program will exit with an error mesage. In
+    /// future integer division by zero will be handled gracefully with an error
+    /// result or exception.
+    /// 
+    /// * `divisor` the number to integer divide this number by
     fn div_assign(&mut self, divisor: Self) {
         *self = *self / divisor;
     }
