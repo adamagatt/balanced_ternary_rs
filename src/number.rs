@@ -6,6 +6,15 @@ use std::ops::{Neg, Shl, ShlAssign};
 
 use crate::trit::Trit;
 
+/// A number in ternary is an array of trit values, similar to how a binary
+/// encoding is an array of bits. This is an implementation of a number in
+/// "Balanced Ternary", a system where each trit can be "-1", "0" or "+1".
+/// 
+/// This is a templated class to allow the user to specify the number of trits
+/// to use for the number. All binary operations only support operating on
+/// numbers that share the same size.
+/// 
+/// * `N` The number of trits to use in the number.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Number<const N: usize> ([Trit; N]);
 
@@ -19,7 +28,10 @@ impl<const N: usize> Number<N> {
     /// to most-significant position. If more trits are provided than the size of the number
     /// then the excess will be lost; if fewer are provided then the higher-order trits will
     /// be padded with zeros.
+    /// 
     /// * `source` - An iterator that supplies Trits
+    /// 
+    /// **returns** A balanced ternary number from the supplied trits
     pub fn from_rev_iter(source: impl Iterator<Item = Trit>) -> Self {
         let mut output = Number::<N>::ZERO;
 
@@ -35,10 +47,14 @@ impl<const N: usize> Number<N> {
         output       
     }
     
+    /// Increments the number by adding 1. This may result in a positive
+    /// wraparound if all trits are already positive.
     pub fn inc(&mut self) {
         *self += Trit::Pos;
     }
 
+    /// Decrements the number by adding 1. This may result in a negative
+    /// wraparound if all trits are already negative.
     pub fn dec(&mut self) {
         *self += Trit::Neg;
     }
@@ -47,12 +63,24 @@ impl<const N: usize> Number<N> {
 impl <const N: usize> Neg for Number<N> {
     type Output = Self;
     
+    /// Unary negation of the ternary number, where every trit simply has
+    /// its value flipped.
+    /// 
+    /// **return** The unary negation of this ternary number
     fn neg(self) -> Self::Output {
         Self(self.0.map(Trit::negate))
     }
 }
 
 impl <const N: usize> Sum for Number<N> {
+    /// Implementing this trait to allow an iterator of numbers to
+    /// be summed together. No special logic, simply the usual fold
+    /// over the addition operator. But apparently needs to be explicitly
+    /// implemented as no derive macro appears to be available.
+    /// 
+    /// * `iter` An iterator producing numbers
+    /// 
+    /// **returns** a number representing the sum of all the supplied numbers
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Number::<N>::ZERO, std::ops::Add::add)
     }
@@ -61,6 +89,17 @@ impl <const N: usize> Sum for Number<N> {
 impl <const N: usize> Shl<usize> for Number<N> {
     type Output = Self;
 
+    /// Return the result of left-shifting this number by a specified amount
+    /// of trit positions. As each trit is explicitly signed this operation
+    /// is always a signed shift. This has the usual effect of multiplying the
+    /// number by 3. An over- or under-flow can occur if a non-zero most
+    /// significant trit is shifted, and this can potentially change the sign
+    /// of the result.
+    /// 
+    /// * `positions` The amount of trits to shift the number by
+    /// 
+    /// **returns** The result of left-shifting this number by the specified number
+    /// of trit positions.
     fn shl(self, positions: usize) -> Self::Output {
         let mut out = Number::<N>::ZERO;
 
@@ -77,6 +116,14 @@ impl <const N: usize> Shl<usize> for Number<N> {
 }
 
 impl <const N: usize> ShlAssign<usize> for Number<N> {
+    /// In-place left-shift operation of this number by a specified amount
+    /// of trit positions. As each trit is explicitly signed this operation
+    /// is always a signed shift. This has the usual effect of multiplying the
+    /// number by 3. An over- or under-flow can occur if a non-zero most
+    /// significant trit is shifted, and this can potentially change the sign
+    /// of this number.
+    ///  
+    /// * `positions` The amount of trits to shift this number by
     fn shl_assign(&mut self, positions: usize) {
         // Early exit if we left-shift far enough that our number just becomes zero
         if positions >= N {
