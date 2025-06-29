@@ -13,7 +13,7 @@ impl <const N: usize> Add for Number<N> {
         let reverse_result_trits = self.0.iter().rev()
             .zip(rhs.0.iter().rev())
             // "Scan" as we need an output at each index, with accumulator propagating the carry trit
-            .scan(Trit::ZERO, |carry, (lhs, rhs)| {
+            .scan(Trit::Zero, |carry, (lhs, rhs)| {
                 let SumResult{result, carry: new_carry} = lhs.add_with_carry(rhs, carry);
                 *carry = new_carry;
                 Some(result)
@@ -28,7 +28,7 @@ impl <const N: usize> AddAssign for Number<N> {
         // Much the same as the Add trait, but mutating self data in-place. As such we replace
         // "scan" with "for_each" to remove need for output. However we then lose the accumulator
         // So we need to declare an external `carry` variable.
-        let mut carry = Trit::ZERO;
+        let mut carry = Trit::Zero;
         self.0.iter_mut().rev()
             .zip(rhs.0.iter().rev())
             .for_each(|(lhs, rhs)| {
@@ -46,7 +46,7 @@ impl <const N: usize> AddAssign<Trit> for Number<N> {
         // carry anymore or we run out of trit indices.
         let mut carry = rhs;
         for trit in self.0.iter_mut().rev() {
-            if carry == Trit::ZERO {break;}
+            if carry == Trit::Zero {break;}
 
             let SumResult{result, carry: new_carry} = trit.add(&carry);
             carry = new_carry;
@@ -88,9 +88,9 @@ impl <const N: usize> Mul for Number<N> {
             .zip(from_fn(rhs_shifter))
             .filter_map(|(current_trit, rhs_shifted)| 
                 match current_trit {
-                    Trit::NEG => Some(-rhs_shifted),
-                    Trit::ZERO => None,
-                    Trit::POS => Some(rhs_shifted)
+                    Trit::Neg => Some(-rhs_shifted),
+                    Trit::Zero => None,
+                    Trit::Pos => Some(rhs_shifted)
                 }
             )
             .sum()

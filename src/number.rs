@@ -10,7 +10,9 @@ use crate::trit::Trit;
 pub struct Number<const N: usize> ([Trit; N]);
 
 impl<const N: usize> Number<N> {
-    const ZERO: Number<N> = Number::<N>([Trit::ZERO; N]);
+    /// A balanced ternary representing zero by having all trits
+    /// set to their zero values.
+    const ZERO: Number<N> = Number::<N>([Trit::Zero; N]);
 
     /// Builds a balanced ternary number of length N from the supplied iterator of trits. The
     /// iterator should be in reverse order to allow the number to be populated from least-
@@ -34,11 +36,11 @@ impl<const N: usize> Number<N> {
     }
     
     pub fn inc(&mut self) {
-        *self += Trit::POS;
+        *self += Trit::Pos;
     }
 
     pub fn dec(&mut self) {
-        *self += Trit::NEG;
+        *self += Trit::Neg;
     }
 }
 
@@ -78,7 +80,7 @@ impl <const N: usize> ShlAssign<usize> for Number<N> {
     fn shl_assign(&mut self, positions: usize) {
         // Early exit if we left-shift far enough that our number just becomes zero
         if positions >= N {
-            self.0.fill(Trit::ZERO);
+            self.0.fill(Trit::Zero);
             return;
         }
 
@@ -86,7 +88,7 @@ impl <const N: usize> ShlAssign<usize> for Number<N> {
         // specified number of positions and then zeroing out the least-significant
         // trits.
         self.0.rotate_left(positions);
-        self.0[N-positions..].fill(Trit::ZERO);
+        self.0[N-positions..].fill(Trit::Zero);
     }
 }
 

@@ -21,9 +21,9 @@ impl<const N: usize> From<Number<N>> for i32 {
             // Add index since we will need it to determine value at that position
             .enumerate()
             .map(|(idx, trit)| match trit {
-                Trit::NEG => -3_i32.pow(idx as u32),
-                Trit::ZERO => 0_i32,
-                Trit::POS => 3_i32.pow(idx as u32)
+                Trit::Neg => -3_i32.pow(idx as u32),
+                Trit::Zero => 0_i32,
+                Trit::Pos => 3_i32.pow(idx as u32)
             })
             .sum()
     }
