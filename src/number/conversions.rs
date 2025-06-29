@@ -3,6 +3,15 @@ use std::fmt;
 use crate::{number::Number, trit::Trit};
 
 impl <const N: usize> From<&str> for Number<N> {
+    /// Convert the specified encoded string to its equivalent ternary number
+    /// object, parsing the characters. If the provided encoded value is shorter
+    /// than the templated length then the number is left-padded with zero-
+    /// trits. If it is longer then it is truncated and only the N right-most
+    /// characters are used.
+    /// 
+    /// * `encoded` An encoding of the value to initialise the ternary
+    /// number with, where '-' represents -1, '+' represents +1 and '0'
+    /// represents zero.
     fn from(encoded: &str) -> Self {
         // View character slice as slice of trits, starting from right
         // hand size (lowest significant trit)
@@ -15,6 +24,9 @@ impl <const N: usize> From<&str> for Number<N> {
 }
 
 impl<const N: usize> From<Number<N>> for i32 {
+    /// The value of this number in traditional signed 32-bit representation.
+    /// 
+    /// **returns** This number in signed 32-bit representation
     fn from(number: Number<N>) -> i32 {
         // Proceed through trits from lowest-order to highest
         number.0.iter().rev()
